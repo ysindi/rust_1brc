@@ -8,6 +8,7 @@ rayon = "1.5"
 rustc-hash = "1.1"
 memmap2 = "0.5"
 memchr = "2.5"
+fast-float = "0.2"
 
 [profile.release]
 debug = true

@@ -6,6 +6,7 @@ use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use memmap2::Mmap;
 use memchr::memchr;
+use fast_float;
 
 #[derive(Debug, Clone)]
 struct Stats {
@@ -42,15 +43,14 @@ impl Stats {
     }
 }
 
-fn process_chunk(chunk: &[u8]) -> FxHashMap<String, Stats> {
-    let mut local_data: FxHashMap<String, Stats> = Default::default();
+fn process_chunk(chunk: &[u8]) -> FxHashMap<&[u8], Stats> {
+    let mut local_data: FxHashMap<&[u8], Stats> = Default::default();
     
     for line in chunk.split(|&byte| byte == b'\n') {
-        if let Some((city, temp)) = line.split(|&byte| byte == b';').map(|s| std::str::from_utf8(s).ok()).collect::<Option<Vec<_>>>().and_then(|v| if v.len() == 2 { Some((v[0], v[1])) } else { None }) {
-            let city = city.trim().to_owned();
-            if let Ok(temp) = temp.trim().parse::<f64>() {
-                local_data.entry(city).or_default().update(temp);
-            }
+        let mut parts = line.splitn(2, |&byte| byte == b';');
+        if let (Some(city_bytes), Some(temp_bytes)) = (parts.next(), parts.next()) {
+            let temp = fast_float::parse(temp_bytes).unwrap();
+            local_data.entry(&city_bytes).or_default().update(temp);
         }
     }
     
@@ -86,7 +86,7 @@ fn main() {
         }
     }
     
-    let results: Vec<FxHashMap<String, Stats>> = chunks
+    let results: Vec<FxHashMap<&[u8], Stats>> = chunks
         .par_iter()
         .map(|&(start, end)| process_chunk(&mmap[start..end]))
         .collect();
@@ -102,8 +102,7 @@ fn main() {
     }
 
     let mut sorted_city_data: Vec<_> = city_data.into_iter().collect();
-    sorted_city_data.par_sort_unstable_by_key(|(city, _)| city.clone());
-
+    sorted_city_data.par_sort_unstable_by_key(|(city, _)| *city);
     print!("{{");
     let mut first = true;
     for (city, stats) in &sorted_city_data {
@@ -117,7 +116,7 @@ fn main() {
 
             print!(
                 "{}={:.1}/{:.1}/{:.1}",
-                city,
+                std::str::from_utf8(city).unwrap(),
                 stats.min,
                 average,
                 stats.max
