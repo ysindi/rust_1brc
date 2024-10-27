@@ -7,6 +7,7 @@ edition = "2021"
 rayon = "1.5"
 rustc-hash = "1.1"
 memmap2 = "0.5"
+memchr = "2.5"
 
 [profile.release]
 debug = true
